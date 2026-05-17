@@ -9,10 +9,11 @@ later when Gmail OAuth is set up).
 import json
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytz
 
+from lib import email_outlook as outlook
 from lib import llm
 from lib import notion_writer
 from lib import telegram_client as tg
@@ -36,8 +37,12 @@ async def run_morning_briefing() -> dict:
     # TODO: pull today's calendar events from Outlook when MS Graph OAuth is wired
     meetings = []
 
-    # TODO: pull new email overnight via Gmail API when OAuth is wired
-    emails = []
+    # Overnight email from md@tabp.co.in — fetch via Microsoft Graph.
+    # Window: yesterday 18:00 IST → now, which covers anything that
+    # arrived after Prabhu logged off the previous evening. Capped at
+    # 50 messages so the LLM context stays manageable; Gemini picks the
+    # top 5 by importance per the briefing prompt.
+    emails = await _fetch_overnight_emails()
 
     # TODO: pull WhatsApp captures from last 24h (from Notion via new-rows filter)
     whatsapp_caps = []
@@ -63,6 +68,45 @@ async def run_morning_briefing() -> dict:
 
     log.info("morning briefing delivered: urgent=%d", len(briefing.get("urgent", [])))
     return {"ok": True, "urgent_count": len(briefing.get("urgent", []))}
+
+
+async def _fetch_overnight_emails() -> list[dict]:
+    """Pull recent Outlook messages for the briefing. Soft-fail.
+
+    Returns a list of flattened message dicts (subject, from, preview, …)
+    suitable for embedding in the morning-briefing prompt. If Graph is
+    unreachable or the token is bad, returns an empty list and logs —
+    the rest of the briefing still works.
+    """
+    # Yesterday 18:00 IST in UTC for the Graph query
+    now_ist = datetime.now(IST)
+    yesterday_evening_ist = (now_ist - timedelta(days=1)).replace(
+        hour=18, minute=0, second=0, microsecond=0
+    )
+    since_utc = yesterday_evening_ist.astimezone(timezone.utc)
+
+    try:
+        raw = await outlook.list_recent_messages(since_utc, limit=50)
+    except Exception as e:
+        log.warning("briefing: overnight email fetch failed (non-fatal): %s", e)
+        return []
+
+    log.info("briefing: fetched %d overnight emails since %s", len(raw), since_utc.isoformat())
+
+    out: list[dict] = []
+    for m in raw:
+        f = (m.get("from") or {}).get("emailAddress") or {}
+        out.append({
+            "subject": (m.get("subject") or "")[:200],
+            "from_name": f.get("name") or "",
+            "from_email": f.get("address") or "",
+            "preview": (m.get("bodyPreview") or "")[:300],
+            "received": m.get("receivedDateTime", ""),
+            "importance": m.get("importance", "normal"),
+            "is_read": m.get("isRead", False),
+            "has_attachments": m.get("hasAttachments", False),
+        })
+    return out
 
 
 def _summarize_rows(rows: list, today) -> list[dict]:
@@ -145,6 +189,16 @@ def _render_briefing(briefing: dict, commitments: list, today) -> str:
         lines.append("*📅 Today's meetings:*")
         for m in meetings[:5]:
             lines.append(f"• {m.get('time','')} {m.get('subject','')}")
+        lines.append("")
+
+    top_emails = briefing.get("top_emails", [])
+    if top_emails:
+        lines.append("*📨 Overnight email:*")
+        for e in top_emails[:5]:
+            sender = e.get("from", "")
+            subject = e.get("subject", "")
+            why = e.get("why_it_matters", "")
+            lines.append(f"• *{sender}* — {subject}" + (f"\n  _{why}_" if why else ""))
         lines.append("")
 
     decisions = briefing.get("decisions_needed", [])

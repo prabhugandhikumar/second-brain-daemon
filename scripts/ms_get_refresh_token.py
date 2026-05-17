@@ -88,18 +88,35 @@ def main():
 
     print()
     print("✅ Sign-in successful.")
+    print(f"   Refresh token length: {len(rt)} chars (typical: 1500-2500)")
+    print(f"   Starts with: {rt[:6]}...")
     print()
-    print("Refresh token (KEEP SECRET):")
-    print(rt)
-    print()
-    print("Next step — push it to Secret Manager:")
-    print()
-    print("  printf '%s' '<paste-refresh-token-here>' | \\")
-    print("    gcloud secrets versions add ms-refresh-token --data-file=- \\")
-    print("    --project=tabp-second-brain")
-    print()
-    print("(If the secret doesn't exist yet, replace 'versions add' with 'create'")
-    print(" and add --replication-policy=automatic)")
+
+    # Auto-push to Secret Manager — avoids any copy-paste / whitespace
+    # mistakes. Pipes the raw token bytes directly into gcloud.
+    print("Pushing to Secret Manager (gcloud secrets versions add ms-refresh-token)…")
+    import subprocess
+    proc = subprocess.run(
+        [
+            "gcloud", "secrets", "versions", "add", "ms-refresh-token",
+            "--data-file=-",
+            "--project=tabp-second-brain",
+        ],
+        input=rt.encode("utf-8"),
+        capture_output=True,
+    )
+    if proc.returncode == 0:
+        print("✓ Pushed. The daemon will pick up the new token on next cold start.")
+        print(f"  ({proc.stdout.decode().strip() or 'no stdout'})")
+    else:
+        sys.stderr.write(
+            f"\n❌ gcloud push failed:\n{proc.stderr.decode()}\n\n"
+            "Fallback: copy this token manually and push yourself:\n"
+            f"\n{rt}\n\n"
+            "  printf 'TOKEN_HERE' | gcloud secrets versions add ms-refresh-token "
+            "--data-file=- --project=tabp-second-brain\n"
+        )
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -157,6 +157,9 @@ Produce a JSON object with this shape:
   "today_meetings": [
     {{ "time": "10:00 AM", "subject": "...", "context": "one-line briefing if needed" }}
   ],
+  "top_emails": [   // top 3-5 overnight emails worth Prabhu's attention; SKIP marketing, transactional confirmations, and noise. Pull from the emails list. Empty list is fine if inbox is uneventful.
+    {{ "from": "Sender name", "subject": "...", "why_it_matters": "one-line — what to do or what's new" }}
+  ],
   "decisions_needed": [  // things that need his judgment, not action
     "..."
   ],
