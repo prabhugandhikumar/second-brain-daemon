@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# Secrets — these should NEVER be committed.
+# Real values live in GCP Secret Manager (see lib/secrets.py).
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+service-account-*.json
+
+# Local artifacts
+*.zip
+daemon.zip
+*.log
+.DS_Store
+.idea/
+.vscode/
+
+# Editor swap files
+*.swp
+*.swo
+*~
+
+# Build output (Cloud Build does its own thing in /workspace)
+build/
+dist/
+*.egg-info/

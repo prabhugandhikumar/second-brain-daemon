@@ -1,0 +1,43 @@
+# Web framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# GCP
+google-cloud-secret-manager==2.21.1
+google-cloud-storage==2.18.2
+google-auth==2.36.0
+google-api-python-client==2.155.0
+
+# Gemini (Google AI Studio) — primary LLM provider for v1
+google-generativeai==0.8.3
+
+# Anthropic (only used if you flip USE_CLAUDE_FOR_SYNTH in lib/llm.py)
+anthropic==0.42.0
+
+# (No OpenAI dep — voice notes now go through Gemini Flash audio input.
+# Whisper was retired 2026-05-16 to stay on free tier and drop a vendor.)
+
+# Notion (we hit the REST API directly — no SDK dep)
+httpx==0.28.1
+
+# Microsoft Graph (Outlook)
+msal==1.31.1
+requests==2.32.3
+
+# Telegram bot (use python-telegram-bot v21+ async)
+python-telegram-bot==21.10
+
+# Templating + web auth
+jinja2==3.1.5
+bcrypt==4.2.1
+itsdangerous==2.2.0  # for signed session cookies
+
+# Email rendering
+premailer==3.10.0  # inlines CSS for email clients
+
+# Utility
+pyyaml==6.0.2
+python-dateutil==2.9.0.post0
+pytz==2024.2
+pillow==11.1.0  # image manipulation if needed

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Second Brain — {{ today }}</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: #f7f7f5;
+    color: #1a1a1a;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 20px; }
+  .hdr {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 1px solid #e6e6e0;
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .hdr h1 { font-size: 22px; margin: 0; font-weight: 600; color: #1a3a5c; }
+  .hdr .sub { color: #6b6b66; font-size: 13px; margin-top: 4px; }
+  .hdr-actions { display: flex; gap: 8px; }
+  .hdr-actions a { color: #1a3a5c; font-size: 13px; text-decoration: none; padding: 6px 12px; border: 1px solid #e6e6e0; border-radius: 6px; }
+  .hdr-actions a:hover { background: white; }
+
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 18px; }
+  .stat { background: white; border: 1px solid #e6e6e0; border-radius: 10px; padding: 12px 14px; }
+  .stat .v { font-size: 24px; font-weight: 700; color: #1a3a5c; line-height: 1; }
+  .stat .l { font-size: 11px; color: #6b6b66; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat.crit .v { color: #b91c1c; }
+  .stat.warn .v { color: #d97706; }
+
+  .bucket { background: white; border: 1px solid #e6e6e0; border-radius: 10px; margin-bottom: 14px; overflow: hidden; }
+  .bucket-h {
+    font-size: 13px; margin: 0; padding: 12px 16px;
+    background: #fafaf7; border-bottom: 1px solid #e6e6e0;
+    font-weight: 600; color: #4a4a44;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .bucket-h .count { background: #e6e6e0; color: #4a4a44; font-weight: 600; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+  .crit-bucket .bucket-h { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+  .crit-bucket .bucket-h .count { background: #fecaca; color: #991b1b; }
+  .warn-bucket .bucket-h { background: #fffbeb; color: #92400e; border-color: #fde68a; }
+  .warn-bucket .bucket-h .count { background: #fde68a; color: #92400e; }
+  .cool-bucket .bucket-h { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+  .cool-bucket .bucket-h .count { background: #bbf7d0; color: #166534; }
+
+  .row { padding: 14px 16px; border-bottom: 1px solid #f0f0e8; display: grid; grid-template-columns: 220px 1fr 140px 200px; gap: 16px; align-items: start; }
+  .row:last-child { border-bottom: none; }
+  .who { font-weight: 600; color: #1a3a5c; }
+  .meta { font-size: 11px; color: #6b6b66; margin-top: 4px; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 500; margin-right: 4px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .pill.tabp { background: #dbeafe; color: #1e3a8a; }
+  .pill.pets { background: #fce7f3; color: #9d174d; }
+  .pill.other { background: #fef3c7; color: #92400e; }
+  .pill.personal { background: #f3f4f6; color: #374151; }
+  .pill.wa { background: #dcfce7; color: #166534; }
+  .pill.email { background: #dbeafe; color: #1e3a8a; }
+  .pill.mtg { background: #ede9fe; color: #5b21b6; }
+  .what { color: #1a1a1a; font-weight: 500; line-height: 1.4; }
+  .note { font-size: 12px; color: #6b6b66; margin-top: 6px; }
+  .aging { font-size: 13px; font-weight: 600; }
+  .aging.crit { color: #b91c1c; }
+  .aging.warn { color: #d97706; }
+  .aging.cool { color: #166534; }
+  .aging-sub { font-size: 11px; color: #8b8b85; margin-top: 2px; font-weight: 400; }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 4px; }
+  .act { border: 1px solid #d4d4cf; background: white; color: #4a4a44; padding: 5px 10px; border-radius: 5px; font-size: 12px; cursor: pointer; text-decoration: none; display: inline-block; }
+  .act:hover { background: #fafaf7; }
+  .act.done { color: #166534; border-color: #bbf7d0; }
+  .act.snooze { color: #92400e; border-color: #fde68a; }
+  .act.notion { color: #1a3a5c; border-color: #c7d2fe; }
+
+  .empty { text-align: center; padding: 32px 20px; color: #8b8b85; }
+  .footer { text-align: center; color: #8b8b85; font-size: 11px; margin-top: 18px; padding: 12px; }
+
+  @media (max-width: 800px) {
+    .row { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+{% set company_pill = {'TABP':'tabp','TABPS Pets':'pets','Other Businesses':'other','Personal':'personal'} %}
+{% set channel_pill = {'WhatsApp':'wa','Email':'email','Meeting':'mtg'} %}
+
+{% macro render_row(c) %}
+<div class="row">
+  <div>
+    <div class="who">{{ c.who }}</div>
+    <div class="meta">
+      <span class="pill {{ channel_pill.get(c.channel, 'other') }}">{{ c.channel }}</span>
+      <span class="pill {{ company_pill.get(c.company, 'other') }}">{{ c.company }}</span>
+    </div>
+  </div>
+  <div>
+    <div class="what">{{ c.what }}</div>
+    {% if c.notes %}<div class="note">{{ c.notes }}</div>{% endif %}
+  </div>
+  <div>
+    {% if c.aging_label %}
+      <div class="aging {{ c.aging_class }}">{{ c.aging_label }}</div>
+      <div class="aging-sub">{{ c.due }}</div>
+    {% else %}
+      <div class="aging-sub">no deadline</div>
+    {% endif %}
+  </div>
+  <div class="actions">
+    <form method="POST" action="/api/done/{{ c.id }}" style="display:inline"><button type="submit" class="act done">✓ Done</button></form>
+    <form method="POST" action="/api/snooze/{{ c.id }}/3" style="display:inline"><button type="submit" class="act snooze">⏰ 3d</button></form>
+    <a class="act notion" href="{{ c.url }}" target="_blank">↗ Notion</a>
+  </div>
+</div>
+{% endmacro %}
+
+<div class="wrap">
+  <div class="hdr">
+    <div>
+      <h1>🧠 Second Brain</h1>
+      <div class="sub">{{ today }} · refreshed {{ now }} · signed in as <b>{{ username }}</b></div>
+    </div>
+    <div class="hdr-actions">
+      <a href="/">Reload</a>
+      <a href="/logout">Sign out</a>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat crit"><div class="v">{{ grouped.overdue|length }}</div><div class="l">Overdue</div></div>
+    <div class="stat warn"><div class="v">{{ grouped.today|length }}</div><div class="l">Due today</div></div>
+    <div class="stat warn"><div class="v">{{ grouped.tomorrow|length }}</div><div class="l">Due tomorrow</div></div>
+    <div class="stat"><div class="v">{{ grouped.week|length }}</div><div class="l">This week</div></div>
+    <div class="stat"><div class="v">{{ grouped.later|length }}</div><div class="l">Later</div></div>
+  </div>
+
+  {% if grouped.overdue %}
+  <div class="bucket crit-bucket">
+    <h2 class="bucket-h"><span>🔴 Overdue — handle first</span><span class="count">{{ grouped.overdue|length }}</span></h2>
+    {% for c in grouped.overdue %}{{ render_row(c) }}{% endfor %}
+  </div>
+  {% endif %}
+
+  {% if grouped.today %}
+  <div class="bucket warn-bucket">
+    <h2 class="bucket-h"><span>🟡 Due today</span><span class="count">{{ grouped.today|length }}</span></h2>
+    {% for c in grouped.today %}{{ render_row(c) }}{% endfor %}
+  </div>
+  {% endif %}
+
+  {% if grouped.tomorrow %}
+  <div class="bucket warn-bucket">
+    <h2 class="bucket-h"><span>📅 Due tomorrow</span><span class="count">{{ grouped.tomorrow|length }}</span></h2>
+    {% for c in grouped.tomorrow %}{{ render_row(c) }}{% endfor %}
+  </div>
+  {% endif %}
+
+  {% if grouped.week %}
+  <div class="bucket">
+    <h2 class="bucket-h"><span>📆 Rest of this week</span><span class="count">{{ grouped.week|length }}</span></h2>
+    {% for c in grouped.week %}{{ render_row(c) }}{% endfor %}
+  </div>
+  {% endif %}
+
+  {% if grouped.later %}
+  <div class="bucket cool-bucket">
+    <h2 class="bucket-h"><span>🗓 Later</span><span class="count">{{ grouped.later|length }}</span></h2>
+    {% for c in grouped.later %}{{ render_row(c) }}{% endfor %}
+  </div>
+  {% endif %}
+
+  {% if not grouped.overdue and not grouped.today and not grouped.tomorrow and not grouped.week and not grouped.later %}
+  <div class="bucket"><div class="empty">✨ Nothing open. Inbox zero.</div></div>
+  {% endif %}
+
+  <div class="footer">briefing.tabp.co.in · Second Brain v1 · data from Notion Commitments DB</div>
+</div>
+</body>
+</html>

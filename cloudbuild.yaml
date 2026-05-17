@@ -1,0 +1,49 @@
+# Cloud Build pipeline for the Second Brain daemon.
+#
+# Triggered on push to the main branch (configure via Cloud Build → Triggers
+# in the GCP console, or with `gcloud builds triggers create github`).
+#
+# Mirrors the same `gcloud run deploy --source .` call that deploy.sh uses,
+# so manual `./deploy.sh code` and CI builds produce identical revisions.
+# IAM, secrets, and scheduler jobs are NOT touched by CI — those remain
+# manual via `./deploy.sh iam` / `./deploy.sh scheduler` / `./deploy.sh secrets`
+# because they need interactive prompts or carry higher-stakes side effects.
+
+substitutions:
+  _SERVICE: secondbrain
+  _REGION: asia-south1
+  _SA_EMAIL: secondbrain@tabp-second-brain.iam.gserviceaccount.com
+  _DRIVE_FOLDER: 1-Qh-aklaTB9CNr7QTQgdum_QKdFNOLkL
+  _OWNER_CHAT: '937808375'
+  _DS_COMMITMENTS: d42a2708-214e-4f31-8933-422dee8d0a09
+  _DS_TASKS: 184cc773-5a57-4fe2-848d-499a85adfbeb
+  _DS_BRIEFINGS: 4f32be90-b07c-41bd-add5-58a55d6e1b1c
+  _DS_CONVERSATIONS: 348c3ae8-9729-41e5-945f-2da9c241ac19
+  _DS_MEETINGS: 60e7301c-2a44-4c6e-8b31-c46a1b930770
+  _DS_REPORTS_DUE: 67fe49c0-9bae-41c7-a1b0-594a42a0c450
+
+steps:
+  - id: deploy
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        gcloud run deploy "${_SERVICE}" \
+          --source . \
+          --region "${_REGION}" \
+          --allow-unauthenticated \
+          --service-account "${_SA_EMAIL}" \
+          --memory 1Gi \
+          --cpu 1 \
+          --max-instances 3 \
+          --timeout 300 \
+          --set-env-vars "GCP_PROJECT_ID=$PROJECT_ID,DRIVE_BRAIN_INBOX_FOLDER_ID=${_DRIVE_FOLDER},TELEGRAM_OWNER_CHAT_ID=${_OWNER_CHAT},NOTION_COMMITMENTS_DS=${_DS_COMMITMENTS},NOTION_TASKS_DS=${_DS_TASKS},NOTION_BRIEFINGS_DS=${_DS_BRIEFINGS},NOTION_CONVERSATIONS_DS=${_DS_CONVERSATIONS},NOTION_MEETINGS_DS=${_DS_MEETINGS},NOTION_REPORTS_DUE_DS=${_DS_REPORTS_DUE}"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+# Generous timeout — first build from a fresh repo can take ~5 min to
+# pull buildpacks + install requirements.txt.
+timeout: 1200s
