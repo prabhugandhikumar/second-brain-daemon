@@ -24,11 +24,12 @@ SECRET_NAMES = [
     "gmail-client-id",
     "gmail-client-secret",
     "ms-client-id",
-    "ms-client-secret",
-    "ms-refresh-token",
+    "ms-tenant-id",
+    "ms-refresh-token",       # public-client flow; no client secret needed
     "dashboard-users-yaml",
     "session-secret",
     "gemini-model-chain",     # JSON list, written by weekly refresh-models cron
+    "email-poll-high-water",  # ISO timestamp, written by email_poll after each run
 ]
 
 # Map Secret Manager names → env var names the rest of the app reads.
@@ -41,11 +42,12 @@ ENV_VAR_MAP = {
     "gmail-client-id":      "GMAIL_CLIENT_ID",
     "gmail-client-secret":  "GMAIL_CLIENT_SECRET",
     "ms-client-id":         "MS_CLIENT_ID",
-    "ms-client-secret":     "MS_CLIENT_SECRET",
+    "ms-tenant-id":         "MS_TENANT_ID",
     "ms-refresh-token":     "MS_REFRESH_TOKEN",
     "dashboard-users-yaml": "DASHBOARD_USERS_YAML",
     "session-secret":       "SESSION_SECRET",
     "gemini-model-chain":   "GEMINI_MODEL_CHAIN",
+    "email-poll-high-water":"EMAIL_POLL_HIGH_WATER",
 }
 
 

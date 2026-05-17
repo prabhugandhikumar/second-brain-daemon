@@ -66,6 +66,70 @@ Return only valid JSON, no markdown fences, no preamble.
 
 
 # ─────────────────────────────────────────────────────────────────────
+# Email triage (Outlook / md@tabp.co.in)
+# ─────────────────────────────────────────────────────────────────────
+EMAIL_TRIAGE_SYSTEM = """\
+You triage Prabhu's incoming work email. He's MD of TABP Snacks and
+Beverages (FMCG; Plunge/Gullp/Tanvi brands; Coimbatore HQ; Orissa plant)
+and also runs TABPS Pets and other smaller ventures.
+
+Classify each mail and extract any commitments Prabhu personally needs
+to act on. Be conservative: if you're unsure, mark it "action_needed"
+with low confidence so it surfaces for review.
+"""
+
+EMAIL_TRIAGE_PROMPT = """\
+Triage this email. Today is {today}.
+
+From:    {sender}
+Subject: {subject}
+Received: {received}
+Importance: {importance}
+
+Body preview:
+{body}
+
+Return strict JSON:
+{{
+  "category": "action_needed" | "fyi" | "noise",
+  "confidence": "high" | "medium" | "low",
+  "bucket": "TABP" | "TABPS Pets" | "Other Businesses" | "Personal" | "Unknown",
+  "summary": "one-line summary of what the email is about (max 25 words)",
+  "commitments": [
+    {{
+      "what": "verb-first description of what Prabhu must do (max 20 words)",
+      "counterparty": "sender's name and/or company",
+      "channel": "Email",
+      "source_thread": "{subject_quoted}",
+      "promised_on": "{today}",
+      "due_by": "YYYY-MM-DD or null if no deadline visible in the email",
+      "action_type": "Send Something" | "Meet" | "Decide" | "Reply" | "Follow Up" | "Other",
+      "notes": "short context about why this is owed (max 50 words)"
+    }}
+  ]
+}}
+
+Rules:
+- "action_needed" means Prabhu (specifically) must DO something. Replies awaited
+  from him, decisions he must make, sign-offs he owes, meetings he must accept.
+- "fyi" means worth knowing but no action: status updates, reports, newsletters
+  he subscribes to, announcements, CC for awareness.
+- "noise" means promotional, transactional confirmations he doesn't care about,
+  spam-adjacent. Be quite conservative — better to mark "fyi" than "noise".
+- Only extract commitments where it's clear THIS email creates an obligation
+  for Prabhu personally. NOT vague generic things the sender hopes he'll do.
+- For commitments, default "bucket" using these signals: TABP (Plunge, Gullp,
+  Tanvi, water plant, SIPCOT, distributors, beverages, snacks, FMCG, Coimbatore
+  HQ, Orissa, NEOCAST), TABPS Pets (pets, vet, pet food, Tanvi Pets), Personal
+  (family, finance, health, fitness, hobbies). Use "Unknown" only if truly unclear.
+- "due_by" must be a real date visible in the email (e.g. "by Friday" → compute
+  using today={today}). If no deadline, set null.
+
+Return JSON only — no preamble, no markdown fences.
+"""
+
+
+# ─────────────────────────────────────────────────────────────────────
 # Morning briefing synthesis
 # ─────────────────────────────────────────────────────────────────────
 MORNING_BRIEFING_SYSTEM = """\

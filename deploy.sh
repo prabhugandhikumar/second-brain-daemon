@@ -149,6 +149,8 @@ if [[ "$MODE" == "all" || "$MODE" == "scheduler" ]]; then
   ensure_scheduler "morning-briefing" "0 5 * * *" "/cron/morning-briefing"
   # Weekly: discover Gemini models, rebuild fallback chain, DM if changed.
   ensure_scheduler "refresh-models" "0 3 * * 0" "/cron/refresh-models"
+  # Every 30 min: poll Outlook for new mail, classify, write commitments.
+  ensure_scheduler "poll-email" "*/30 * * * *" "/cron/poll-email"
 fi
 
 # ─── Done ──────────────────────────────────────────────────

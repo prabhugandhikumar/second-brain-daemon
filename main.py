@@ -6,6 +6,7 @@ Routes:
   POST /cron/poll-drive          — Cloud Scheduler every 15 min
   POST /cron/morning-briefing    — Cloud Scheduler at 5 AM IST
   POST /cron/refresh-models      — Cloud Scheduler weekly (Sun 03:00 IST)
+  POST /cron/poll-email          — Cloud Scheduler every 30 min
   GET  /                         — dashboard (login-protected)
   GET/POST /login                — auth
   GET  /logout                   — clear session
@@ -24,6 +25,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from handlers.telegram import handle_telegram_update
 from handlers.drive_poll import run_drive_poll
 from handlers.briefing import run_morning_briefing
+from handlers.email_poll import run_email_poll
 from lib.secrets import load_runtime_secrets
 from lib.model_refresh import refresh_model_chain
 from lib import notion_writer
@@ -108,6 +110,16 @@ async def cron_morning_briefing(request: Request):
 async def cron_refresh_models(request: Request):
     log.info("cron: refresh-models triggered")
     result = await refresh_model_chain()
+    return result
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Cron: Outlook email poll every 30 min
+# ─────────────────────────────────────────────────────────────────────
+@app.post("/cron/poll-email")
+async def cron_poll_email(request: Request):
+    log.info("cron: poll-email triggered")
+    result = await run_email_poll()
     return result
 
 
