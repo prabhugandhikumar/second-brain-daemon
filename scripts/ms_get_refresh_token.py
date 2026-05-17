@@ -47,9 +47,11 @@ def main():
 
     app = PublicClientApplication(client_id, authority=authority)
 
-    # offline_access is what makes Microsoft return a refresh token.
-    # Mail.Read scopes the access to reading mail only.
-    scopes = ["Mail.Read"]
+    # offline_access (implicit) is what makes Microsoft return a refresh token.
+    # The scopes below are everything the daemon needs:
+    #   - Mail.Read       → /me/messages (Outlook poller)
+    #   - Calendars.Read  → /me/calendarView (today's meetings in the briefing)
+    scopes = ["Mail.Read", "Calendars.Read"]
 
     flow = app.initiate_device_flow(scopes=scopes)
     if "user_code" not in flow:

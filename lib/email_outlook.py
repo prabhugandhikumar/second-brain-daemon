@@ -24,7 +24,10 @@ from lib import secrets
 log = logging.getLogger(__name__)
 
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
-SCOPES = ["https://graph.microsoft.com/Mail.Read"]
+SCOPES = [
+    "https://graph.microsoft.com/Mail.Read",
+    "https://graph.microsoft.com/Calendars.Read",
+]
 
 
 def _msal_app():
@@ -118,3 +121,46 @@ async def get_message(message_id: str) -> dict:
         )
         r.raise_for_status()
         return r.json()
+
+
+async def list_calendar_events(
+    start: datetime, end: datetime, timezone_name: str = "Asia/Kolkata",
+) -> list[dict]:
+    """List calendar events in the [start, end] window.
+
+    Uses /me/calendarView which expands recurring meetings into concrete
+    instances — exactly what we want for "today's meetings" view.
+
+    timezone_name controls how Graph returns the start/end times in the
+    response; pass Prabhu's IST so the briefing renderer doesn't have to
+    convert.
+    """
+    access_token = _get_access_token()
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=timezone.utc)
+
+    params = {
+        "startDateTime": start.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "endDateTime": end.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "$orderby": "start/dateTime",
+        "$top": 50,
+        "$select": (
+            "id,subject,start,end,location,organizer,attendees,"
+            "isAllDay,isCancelled,onlineMeeting,bodyPreview,webLink,"
+            "showAs"
+        ),
+    }
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        # Ask Graph to return times in IST so the briefing doesn't need
+        # to do its own conversion.
+        "Prefer": f'outlook.timezone="{timezone_name}"',
+    }
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.get(f"{GRAPH_BASE}/me/calendarView", params=params, headers=headers)
+        if r.status_code >= 400:
+            log.error("Graph calendarView failed: %s", r.text)
+            r.raise_for_status()
+        return r.json().get("value", [])

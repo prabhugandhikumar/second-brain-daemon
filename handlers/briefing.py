@@ -34,8 +34,8 @@ async def run_morning_briefing() -> dict:
     raw_rows = await notion_writer.get_open_commitments(limit=50)
     commitments = _summarize_rows(raw_rows, today)
 
-    # TODO: pull today's calendar events from Outlook when MS Graph OAuth is wired
-    meetings = []
+    # Today's calendar events from Outlook (md@tabp.co.in)
+    meetings = await _fetch_today_meetings()
 
     # Overnight email from md@tabp.co.in — fetch via Microsoft Graph.
     # Window: yesterday 18:00 IST → now, which covers anything that
@@ -68,6 +68,53 @@ async def run_morning_briefing() -> dict:
 
     log.info("morning briefing delivered: urgent=%d", len(briefing.get("urgent", [])))
     return {"ok": True, "urgent_count": len(briefing.get("urgent", []))}
+
+
+async def _fetch_today_meetings() -> list[dict]:
+    """Pull today's Outlook calendar events. Soft-fail.
+
+    Window: today 00:00 IST → today 23:59 IST. The Graph response includes
+    recurring meeting instances expanded for the day (calendarView endpoint).
+    Returns a list of flattened event dicts. Empty list on Graph error.
+    """
+    now_ist = datetime.now(IST)
+    start_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_ist = now_ist.replace(hour=23, minute=59, second=59, microsecond=0)
+
+    try:
+        raw = await outlook.list_calendar_events(start_ist, end_ist, timezone_name="Asia/Kolkata")
+    except Exception as e:
+        log.warning("briefing: today's calendar fetch failed (non-fatal): %s", e)
+        return []
+
+    log.info("briefing: fetched %d events for today", len(raw))
+
+    out: list[dict] = []
+    for ev in raw:
+        if ev.get("isCancelled"):
+            continue
+        start = (ev.get("start") or {}).get("dateTime", "")
+        end = (ev.get("end") or {}).get("dateTime", "")
+        # Format start time as "10:00 AM IST" — Graph returns "2026-05-18T10:00:00.0000000"
+        time_label = ""
+        if start:
+            try:
+                dt = datetime.fromisoformat(start.split(".")[0])
+                time_label = dt.strftime("%I:%M %p").lstrip("0")
+            except Exception:
+                time_label = start
+        out.append({
+            "subject": ev.get("subject", "(no subject)"),
+            "time": time_label,
+            "start": start,
+            "end": end,
+            "location": ((ev.get("location") or {}).get("displayName") or ""),
+            "organizer": ((ev.get("organizer") or {}).get("emailAddress") or {}).get("name") or "",
+            "is_online": bool((ev.get("onlineMeeting") or {}).get("joinUrl")),
+            "is_all_day": ev.get("isAllDay", False),
+            "preview": (ev.get("bodyPreview") or "")[:200],
+        })
+    return out
 
 
 async def _fetch_overnight_emails() -> list[dict]:
