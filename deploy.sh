@@ -145,14 +145,15 @@ ensure_scheduler () {
 if [[ "$MODE" == "all" || "$MODE" == "scheduler" ]]; then
   echo ""
   echo "▸ Setting up Cloud Scheduler jobs..."
-  ensure_scheduler "poll-drive" "*/15 * * * *" "/cron/poll-drive"
+  ensure_scheduler "poll-drive" "0 * * * *" "/cron/poll-drive"
   ensure_scheduler "morning-briefing" "0 5 * * *" "/cron/morning-briefing"
   # Evening briefing — 9 PM IST, forward-looking for the next day.
   ensure_scheduler "evening-briefing" "0 21 * * *" "/cron/evening-briefing"
   # Weekly: discover Gemini models, rebuild fallback chain, DM if changed.
   ensure_scheduler "refresh-models" "0 3 * * 0" "/cron/refresh-models"
-  # Every 30 min: poll Outlook for new mail, classify, write commitments.
-  ensure_scheduler "poll-email" "*/30 * * * *" "/cron/poll-email"
+  # Every 6 hours: poll Outlook for new mail, classify, write commitments.
+  # (Throttled from 30 min to stay under free-tier Gemini quotas.)
+  ensure_scheduler "poll-email" "0 */6 * * *" "/cron/poll-email"
 fi
 
 # ─── Done ──────────────────────────────────────────────────
