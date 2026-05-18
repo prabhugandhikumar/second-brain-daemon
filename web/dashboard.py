@@ -1,6 +1,20 @@
 """
 Web dashboard at briefing.tabp.co.in — login-protected.
 
+Three-tab structure (designed 2026-05-18):
+
+    [Today] [Tomorrow] [All Open]
+
+    - Today    : today's Outlook calendar + agreed meetings not on calendar +
+                 commitments due today
+    - Tomorrow : tomorrow's Outlook calendar + agreed meetings due in next 3d +
+                 commitments due tomorrow (the evening-prep view)
+    - All Open : current grouped view (overdue / today / tomorrow / week / later)
+
+The dashboard makes ZERO LLM calls — it's a fast structured view of the raw
+data. The synthesised, prioritised version lives in the morning + evening
+briefings sent via Telegram.
+
 Routes:
     GET  /            — dashboard (requires login)
     GET  /login       — login form
@@ -9,7 +23,7 @@ Routes:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -18,6 +32,7 @@ from fastapi import Request, Form, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from handlers import briefing as briefing_helpers
 from lib import notion_writer
 from web import auth
 
@@ -41,19 +56,74 @@ def register_dashboard_routes(app):
         if not username:
             return RedirectResponse("/login")
 
-        # Fetch open commitments and group by urgency
-        rows = await notion_writer.get_open_commitments(limit=50)
         today = datetime.now(IST).date()
+        tomorrow = today + timedelta(days=1)
+        today_iso = today.isoformat()
+        tomorrow_iso = tomorrow.isoformat()
+
+        # 1) Open commitments (full set, used for all three tabs)
+        rows = await notion_writer.get_open_commitments(limit=100)
+        commitments = briefing_helpers._summarize_rows(rows, today)
+
+        # 2) Group commitments by due-date bucket (for "All Open" tab)
         grouped = _group_commitments(rows, today)
+
+        # 3) Calendar — today's and tomorrow's Outlook events
+        try:
+            today_meetings = await briefing_helpers._fetch_today_meetings()
+        except Exception as e:
+            log.warning("dashboard: today's calendar fetch failed: %s", e)
+            today_meetings = []
+        try:
+            tomorrow_meetings = await briefing_helpers.fetch_meetings_for(tomorrow)
+        except Exception as e:
+            log.warning("dashboard: tomorrow's calendar fetch failed: %s", e)
+            tomorrow_meetings = []
+
+        # 4) Unscheduled meetings (commitments with action_type=Meet)
+        unsched_today = briefing_helpers._filter_unscheduled_meetings(
+            commitments, window_start=today, window_days=1
+        )
+        unsched_tomorrow = briefing_helpers._filter_unscheduled_meetings(
+            commitments, window_start=tomorrow, window_days=3
+        )
+
+        # 5) Due-today and due-tomorrow non-meeting commitments
+        due_today = [
+            c for c in commitments
+            if c.get("due_by") == today_iso and c.get("action_type") != "Meet"
+        ]
+        due_tomorrow = [
+            c for c in commitments
+            if c.get("due_by") == tomorrow_iso and c.get("action_type") != "Meet"
+        ]
+
+        # 6) Find each commitment's matching Notion URL for the "↗ Notion" buttons
+        url_by_id = {r.get("id"): r.get("url", "") for r in rows}
+
+        def _attach_url(items: list[dict]) -> list[dict]:
+            out = []
+            for item in items:
+                copy = dict(item)
+                copy["url"] = url_by_id.get(item.get("id") or item.get("page_id"), "")
+                out.append(copy)
+            return out
 
         return templates.TemplateResponse(
             request=request,
             name="dashboard.html",
             context={
                 "username": username,
-                "today": today.strftime("%a %d %b %Y"),
-                "grouped": grouped,
+                "today_label": today.strftime("%a %d %b %Y"),
+                "tomorrow_label": tomorrow.strftime("%a %d %b %Y"),
                 "now": datetime.now(IST).strftime("%I:%M %p IST"),
+                "grouped": grouped,
+                "today_meetings": today_meetings,
+                "tomorrow_meetings": tomorrow_meetings,
+                "unsched_today": _attach_url(unsched_today),
+                "unsched_tomorrow": _attach_url(unsched_tomorrow),
+                "due_today": _attach_url(due_today),
+                "due_tomorrow": _attach_url(due_tomorrow),
             },
         )
 
@@ -88,7 +158,12 @@ def register_dashboard_routes(app):
 
 
 def _group_commitments(rows: list, today) -> dict:
-    """Group commitments by urgency for the dashboard sections."""
+    """Group commitments by urgency for the 'All Open' tab.
+
+    Same grouping as before — overdue / today / tomorrow / this week / later —
+    just kept its own pass for the rich rendering (notes, aging label, etc.)
+    that the schedule-section views don't need.
+    """
     today_iso = today.isoformat()
     groups = {"overdue": [], "today": [], "tomorrow": [], "week": [], "later": []}
 
@@ -100,7 +175,6 @@ def _group_commitments(rows: list, today) -> dict:
         channel = (props.get("Counterparty Channel", {}).get("select") or {}).get("name", "—")
         notes = " ".join(b.get("plain_text", "") for b in props.get("Notes", {}).get("rich_text", []))
         due = (props.get("Due By", {}).get("date") or {}).get("start", "")
-        promised = (props.get("Promised On", {}).get("date") or {}).get("start", "")
         url = r.get("url", "")
         page_id = r.get("id", "")
 

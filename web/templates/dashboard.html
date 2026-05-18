@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Second Brain — {{ today }}</title>
+<title>Second Brain — {{ today_label }}</title>
 <style>
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
@@ -32,6 +32,36 @@
   .hdr-actions a { color: #1a3a5c; font-size: 13px; text-decoration: none; padding: 6px 12px; border: 1px solid #e6e6e0; border-radius: 6px; }
   .hdr-actions a:hover { background: white; }
 
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    background: white;
+    border: 1px solid #e6e6e0;
+    border-radius: 10px;
+    padding: 4px;
+    margin-bottom: 18px;
+    width: fit-content;
+  }
+  .tab-btn {
+    background: transparent;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 7px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #6b6b66;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .tab-btn:hover { color: #1a3a5c; }
+  .tab-btn.active {
+    background: #1a3a5c;
+    color: white;
+  }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
   .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 18px; }
   .stat { background: white; border: 1px solid #e6e6e0; border-radius: 10px; padding: 12px 14px; }
   .stat .v { font-size: 24px; font-weight: 700; color: #1a3a5c; line-height: 1; }
@@ -53,7 +83,12 @@
   .warn-bucket .bucket-h .count { background: #fde68a; color: #92400e; }
   .cool-bucket .bucket-h { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
   .cool-bucket .bucket-h .count { background: #bbf7d0; color: #166534; }
+  .calendar-bucket .bucket-h { background: #f0f9ff; color: #1e3a8a; border-color: #bfdbfe; }
+  .calendar-bucket .bucket-h .count { background: #bfdbfe; color: #1e3a8a; }
+  .meetings-bucket .bucket-h { background: #faf5ff; color: #5b21b6; border-color: #ddd6fe; }
+  .meetings-bucket .bucket-h .count { background: #ddd6fe; color: #5b21b6; }
 
+  /* Commitment row (used in All Open) */
   .row { padding: 14px 16px; border-bottom: 1px solid #f0f0e8; display: grid; grid-template-columns: 220px 1fr 140px 200px; gap: 16px; align-items: start; }
   .row:last-child { border-bottom: none; }
   .who { font-weight: 600; color: #1a3a5c; }
@@ -74,6 +109,24 @@
   .aging.cool { color: #166534; }
   .aging-sub { font-size: 11px; color: #8b8b85; margin-top: 2px; font-weight: 400; }
 
+  /* Event / meeting row (used in Today / Tomorrow tabs) */
+  .event-row { padding: 12px 16px; border-bottom: 1px solid #f0f0e8; display: grid; grid-template-columns: 100px 1fr 200px; gap: 16px; align-items: start; }
+  .event-row:last-child { border-bottom: none; }
+  .event-time { font-weight: 600; color: #1a3a5c; font-size: 14px; }
+  .event-when { font-size: 11px; color: #8b8b85; margin-top: 2px; }
+  .event-subject { color: #1a1a1a; font-weight: 500; line-height: 1.4; }
+  .event-meta { font-size: 11px; color: #6b6b66; margin-top: 4px; }
+  .event-where { font-size: 12px; color: #6b6b66; margin-top: 4px; }
+  .event-online { display: inline-block; padding: 1px 6px; border-radius: 8px; background: #dcfce7; color: #166534; font-size: 10px; font-weight: 500; margin-left: 4px; }
+
+  /* Agreed-meeting row */
+  .meet-row { padding: 12px 16px; border-bottom: 1px solid #f0f0e8; display: grid; grid-template-columns: 200px 1fr 200px; gap: 16px; align-items: start; }
+  .meet-row:last-child { border-bottom: none; }
+  .meet-who { font-weight: 600; color: #5b21b6; }
+  .meet-promised { font-size: 11px; color: #8b8b85; margin-top: 2px; }
+  .meet-what { color: #1a1a1a; font-weight: 500; }
+  .meet-aging { font-size: 13px; font-weight: 600; color: #d97706; }
+
   .actions { display: flex; flex-wrap: wrap; gap: 4px; }
   .act { border: 1px solid #d4d4cf; background: white; color: #4a4a44; padding: 5px 10px; border-radius: 5px; font-size: 12px; cursor: pointer; text-decoration: none; display: inline-block; }
   .act:hover { background: #fafaf7; }
@@ -86,6 +139,7 @@
 
   @media (max-width: 800px) {
     .row { grid-template-columns: 1fr; }
+    .event-row, .meet-row { grid-template-columns: 1fr; }
     .stats { grid-template-columns: repeat(2, 1fr); }
   }
 </style>
@@ -119,7 +173,49 @@
   <div class="actions">
     <form method="POST" action="/api/done/{{ c.id }}" style="display:inline"><button type="submit" class="act done">✓ Done</button></form>
     <form method="POST" action="/api/snooze/{{ c.id }}/3" style="display:inline"><button type="submit" class="act snooze">⏰ 3d</button></form>
-    <a class="act notion" href="{{ c.url }}" target="_blank">↗ Notion</a>
+    {% if c.url %}<a class="act notion" href="{{ c.url }}" target="_blank">↗ Notion</a>{% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+{% macro render_event(ev) %}
+<div class="event-row">
+  <div>
+    <div class="event-time">{{ ev.time or '—' }}</div>
+    {% if ev.is_all_day %}<div class="event-when">All day</div>{% endif %}
+  </div>
+  <div>
+    <div class="event-subject">
+      {{ ev.subject }}
+      {% if ev.is_online %}<span class="event-online">online</span>{% endif %}
+    </div>
+    {% if ev.organizer %}<div class="event-meta">with {{ ev.organizer }}</div>{% endif %}
+    {% if ev.location %}<div class="event-where">📍 {{ ev.location }}</div>{% endif %}
+  </div>
+  <div></div>
+</div>
+{% endmacro %}
+
+{% macro render_meet(m) %}
+<div class="meet-row">
+  <div>
+    <div class="meet-who">{{ m.with or m['with'] or '—' }}</div>
+    {% if m.promised_on %}<div class="meet-promised">promised {{ m.promised_on }}</div>{% endif %}
+  </div>
+  <div>
+    <div class="meet-what">{{ m.what }}</div>
+    <div class="event-meta">
+      {% if m.company %}<span class="pill {{ company_pill.get(m.company, 'other') }}">{{ m.company }}</span>{% endif %}
+      {% if m.due_by %}<span class="meet-aging">due {{ m.due_by }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="actions">
+    {% set _id = m.page_id or m.id %}
+    {% if _id %}
+      <form method="POST" action="/api/done/{{ _id }}" style="display:inline"><button type="submit" class="act done">✓ Done</button></form>
+      <form method="POST" action="/api/snooze/{{ _id }}/3" style="display:inline"><button type="submit" class="act snooze">⏰ 3d</button></form>
+      {% if m.url %}<a class="act notion" href="{{ m.url }}" target="_blank">↗ Notion</a>{% endif %}
+    {% endif %}
   </div>
 </div>
 {% endmacro %}
@@ -128,7 +224,7 @@
   <div class="hdr">
     <div>
       <h1>🧠 Second Brain</h1>
-      <div class="sub">{{ today }} · refreshed {{ now }} · signed in as <b>{{ username }}</b></div>
+      <div class="sub">{{ today_label }} · refreshed {{ now }} · signed in as <b>{{ username }}</b></div>
     </div>
     <div class="hdr-actions">
       <a href="/">Reload</a>
@@ -136,54 +232,172 @@
     </div>
   </div>
 
-  <div class="stats">
-    <div class="stat crit"><div class="v">{{ grouped.overdue|length }}</div><div class="l">Overdue</div></div>
-    <div class="stat warn"><div class="v">{{ grouped.today|length }}</div><div class="l">Due today</div></div>
-    <div class="stat warn"><div class="v">{{ grouped.tomorrow|length }}</div><div class="l">Due tomorrow</div></div>
-    <div class="stat"><div class="v">{{ grouped.week|length }}</div><div class="l">This week</div></div>
-    <div class="stat"><div class="v">{{ grouped.later|length }}</div><div class="l">Later</div></div>
+  <div class="tabs" role="tablist">
+    <button class="tab-btn active" data-tab="today">📅 Today</button>
+    <button class="tab-btn" data-tab="tomorrow">🌙 Tomorrow</button>
+    <button class="tab-btn" data-tab="all">📋 All Open</button>
   </div>
 
-  {% if grouped.overdue %}
-  <div class="bucket crit-bucket">
-    <h2 class="bucket-h"><span>🔴 Overdue — handle first</span><span class="count">{{ grouped.overdue|length }}</span></h2>
-    {% for c in grouped.overdue %}{{ render_row(c) }}{% endfor %}
+  <!-- ─────────────────────── TODAY TAB ─────────────────────── -->
+  <div class="tab-pane active" data-tab-pane="today">
+    <div class="stats">
+      <div class="stat"><div class="v">{{ today_meetings|length }}</div><div class="l">Calendar today</div></div>
+      <div class="stat warn"><div class="v">{{ unsched_today|length }}</div><div class="l">Agreed mtgs</div></div>
+      <div class="stat warn"><div class="v">{{ due_today|length }}</div><div class="l">Due today</div></div>
+      <div class="stat crit"><div class="v">{{ grouped.overdue|length }}</div><div class="l">Overdue</div></div>
+      <div class="stat"><div class="v">{{ grouped.tomorrow|length + grouped.week|length + grouped.later|length + grouped.today|length }}</div><div class="l">Total open</div></div>
+    </div>
+
+    {% if today_meetings %}
+    <div class="bucket calendar-bucket">
+      <h2 class="bucket-h"><span>📅 Today's calendar</span><span class="count">{{ today_meetings|length }}</span></h2>
+      {% for ev in today_meetings %}{{ render_event(ev) }}{% endfor %}
+    </div>
+    {% endif %}
+
+    {% if unsched_today %}
+    <div class="bucket meetings-bucket">
+      <h2 class="bucket-h"><span>🤝 Agreed meetings — not on calendar</span><span class="count">{{ unsched_today|length }}</span></h2>
+      {% for m in unsched_today %}{{ render_meet(m) }}{% endfor %}
+    </div>
+    {% endif %}
+
+    {% if due_today %}
+    <div class="bucket warn-bucket">
+      <h2 class="bucket-h"><span>🟡 Due today</span><span class="count">{{ due_today|length }}</span></h2>
+      {% for c in due_today %}{{ render_meet(c) }}{% endfor %}
+    </div>
+    {% endif %}
+
+    {% if grouped.overdue %}
+    <div class="bucket crit-bucket">
+      <h2 class="bucket-h"><span>🔴 Overdue — handle first</span><span class="count">{{ grouped.overdue|length }}</span></h2>
+      {% for c in grouped.overdue %}{{ render_row(c) }}{% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not today_meetings and not unsched_today and not due_today and not grouped.overdue %}
+    <div class="bucket"><div class="empty">✨ Today's clear. No calendar, no items due, no overdue.</div></div>
+    {% endif %}
   </div>
-  {% endif %}
 
-  {% if grouped.today %}
-  <div class="bucket warn-bucket">
-    <h2 class="bucket-h"><span>🟡 Due today</span><span class="count">{{ grouped.today|length }}</span></h2>
-    {% for c in grouped.today %}{{ render_row(c) }}{% endfor %}
+  <!-- ─────────────────────── TOMORROW TAB ─────────────────────── -->
+  <div class="tab-pane" data-tab-pane="tomorrow">
+    <div class="stats">
+      <div class="stat"><div class="v">{{ tomorrow_meetings|length }}</div><div class="l">Calendar tmrw</div></div>
+      <div class="stat warn"><div class="v">{{ unsched_tomorrow|length }}</div><div class="l">Agreed mtgs</div></div>
+      <div class="stat warn"><div class="v">{{ due_tomorrow|length }}</div><div class="l">Due tomorrow</div></div>
+      <div class="stat"><div class="v">{{ grouped.week|length }}</div><div class="l">Rest of week</div></div>
+      <div class="stat crit"><div class="v">{{ grouped.overdue|length }}</div><div class="l">Overdue (still)</div></div>
+    </div>
+
+    <div class="hdr" style="margin-top: 8px; margin-bottom: 12px; padding-bottom: 0; border: none;">
+      <div class="sub" style="margin: 0;">Preview for <b>{{ tomorrow_label }}</b></div>
+    </div>
+
+    {% if tomorrow_meetings %}
+    <div class="bucket calendar-bucket">
+      <h2 class="bucket-h"><span>📅 Tomorrow's calendar</span><span class="count">{{ tomorrow_meetings|length }}</span></h2>
+      {% for ev in tomorrow_meetings %}{{ render_event(ev) }}{% endfor %}
+    </div>
+    {% endif %}
+
+    {% if unsched_tomorrow %}
+    <div class="bucket meetings-bucket">
+      <h2 class="bucket-h"><span>🤝 Agreed meetings — put on calendar tonight</span><span class="count">{{ unsched_tomorrow|length }}</span></h2>
+      {% for m in unsched_tomorrow %}{{ render_meet(m) }}{% endfor %}
+    </div>
+    {% endif %}
+
+    {% if due_tomorrow %}
+    <div class="bucket warn-bucket">
+      <h2 class="bucket-h"><span>📌 Due tomorrow</span><span class="count">{{ due_tomorrow|length }}</span></h2>
+      {% for c in due_tomorrow %}{{ render_meet(c) }}{% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not tomorrow_meetings and not unsched_tomorrow and not due_tomorrow %}
+    <div class="bucket"><div class="empty">🌙 Tomorrow's wide open. Use it well.</div></div>
+    {% endif %}
   </div>
-  {% endif %}
 
-  {% if grouped.tomorrow %}
-  <div class="bucket warn-bucket">
-    <h2 class="bucket-h"><span>📅 Due tomorrow</span><span class="count">{{ grouped.tomorrow|length }}</span></h2>
-    {% for c in grouped.tomorrow %}{{ render_row(c) }}{% endfor %}
+  <!-- ─────────────────────── ALL OPEN TAB ─────────────────────── -->
+  <div class="tab-pane" data-tab-pane="all">
+    <div class="stats">
+      <div class="stat crit"><div class="v">{{ grouped.overdue|length }}</div><div class="l">Overdue</div></div>
+      <div class="stat warn"><div class="v">{{ grouped.today|length }}</div><div class="l">Due today</div></div>
+      <div class="stat warn"><div class="v">{{ grouped.tomorrow|length }}</div><div class="l">Due tomorrow</div></div>
+      <div class="stat"><div class="v">{{ grouped.week|length }}</div><div class="l">This week</div></div>
+      <div class="stat"><div class="v">{{ grouped.later|length }}</div><div class="l">Later</div></div>
+    </div>
+
+    {% if grouped.overdue %}
+    <div class="bucket crit-bucket">
+      <h2 class="bucket-h"><span>🔴 Overdue — handle first</span><span class="count">{{ grouped.overdue|length }}</span></h2>
+      {% for c in grouped.overdue %}{{ render_row(c) }}{% endfor %}
+    </div>
+    {% endif %}
+
+    {% if grouped.today %}
+    <div class="bucket warn-bucket">
+      <h2 class="bucket-h"><span>🟡 Due today</span><span class="count">{{ grouped.today|length }}</span></h2>
+      {% for c in grouped.today %}{{ render_row(c) }}{% endfor %}
+    </div>
+    {% endif %}
+
+    {% if grouped.tomorrow %}
+    <div class="bucket warn-bucket">
+      <h2 class="bucket-h"><span>📅 Due tomorrow</span><span class="count">{{ grouped.tomorrow|length }}</span></h2>
+      {% for c in grouped.tomorrow %}{{ render_row(c) }}{% endfor %}
+    </div>
+    {% endif %}
+
+    {% if grouped.week %}
+    <div class="bucket">
+      <h2 class="bucket-h"><span>📆 Rest of this week</span><span class="count">{{ grouped.week|length }}</span></h2>
+      {% for c in grouped.week %}{{ render_row(c) }}{% endfor %}
+    </div>
+    {% endif %}
+
+    {% if grouped.later %}
+    <div class="bucket cool-bucket">
+      <h2 class="bucket-h"><span>🗓 Later</span><span class="count">{{ grouped.later|length }}</span></h2>
+      {% for c in grouped.later %}{{ render_row(c) }}{% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not grouped.overdue and not grouped.today and not grouped.tomorrow and not grouped.week and not grouped.later %}
+    <div class="bucket"><div class="empty">✨ Nothing open. Inbox zero.</div></div>
+    {% endif %}
   </div>
-  {% endif %}
 
-  {% if grouped.week %}
-  <div class="bucket">
-    <h2 class="bucket-h"><span>📆 Rest of this week</span><span class="count">{{ grouped.week|length }}</span></h2>
-    {% for c in grouped.week %}{{ render_row(c) }}{% endfor %}
-  </div>
-  {% endif %}
-
-  {% if grouped.later %}
-  <div class="bucket cool-bucket">
-    <h2 class="bucket-h"><span>🗓 Later</span><span class="count">{{ grouped.later|length }}</span></h2>
-    {% for c in grouped.later %}{{ render_row(c) }}{% endfor %}
-  </div>
-  {% endif %}
-
-  {% if not grouped.overdue and not grouped.today and not grouped.tomorrow and not grouped.week and not grouped.later %}
-  <div class="bucket"><div class="empty">✨ Nothing open. Inbox zero.</div></div>
-  {% endif %}
-
-  <div class="footer">briefing.tabp.co.in · Second Brain v1 · data from Notion Commitments DB</div>
+  <div class="footer">briefing.tabp.co.in · Second Brain v1 · data from Notion + Outlook</div>
 </div>
+
+<script>
+  // Simple tab toggle. Remembers your last-picked tab via localStorage so a
+  // reload doesn't bounce you back to "Today".
+  (function() {
+    const KEY = 'sb-dashboard-tab';
+    const buttons = document.querySelectorAll('.tab-btn');
+    const panes = document.querySelectorAll('.tab-pane');
+
+    function pickTab(name) {
+      buttons.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+      panes.forEach(p => p.classList.toggle('active', p.dataset.tabPane === name));
+      try { localStorage.setItem(KEY, name); } catch (e) {}
+    }
+
+    buttons.forEach(b => b.addEventListener('click', () => pickTab(b.dataset.tab)));
+
+    // Restore last tab on load (default = today)
+    let saved = null;
+    try { saved = localStorage.getItem(KEY); } catch (e) {}
+    if (saved && document.querySelector('[data-tab-pane="' + saved + '"]')) {
+      pickTab(saved);
+    }
+  })();
+</script>
+
 </body>
 </html>
