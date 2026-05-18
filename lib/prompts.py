@@ -141,36 +141,115 @@ the morning before opening any other app. Surface what matters; suppress noise.
 MORNING_BRIEFING_PROMPT = """\
 Compose Prabhu's morning briefing for {date}.
 
+He thinks schedule-first: the day is a series of calendar slots and
+everything else slots around them. Lead with the schedule. Then surface
+meetings he agreed to that aren't on the calendar yet, then triage the
+past-24-hour email, then the rest.
+
 Given:
 - Open commitments (with aging): {commitments_json}
-- Today's meetings (Outlook): {meetings_json}
-- New email overnight (top 5 by importance): {emails_json}
+- Today's meetings (Outlook calendar): {meetings_json}
+- Meetings agreed to (e.g. via WhatsApp/email) that may not be on the
+  calendar yet — sourced from Commitments DB action_type='Meet':
+  {unscheduled_meetings_json}
+- All email received in the past 24 hours: {emails_json}
 - New WhatsApp captures since yesterday: {whatsapp_json}
 
 Produce a JSON object with this shape:
 {{
-  "greeting": one sentence acknowledging the date and weather/season if relevant,
-  "lead": the single most important thing he should know first (one sentence),
-  "urgent": [   // commitments overdue or due today
+  "greeting": "one sentence acknowledging the date / weather / season",
+  "lead": "the single most important thing he should know first (one sentence)",
+  "schedule": [    // each Outlook calendar event for today, in order, with prep notes
+    {{
+      "time": "10:00 AM",
+      "subject": "...",
+      "with": "counterparty if it's external",
+      "company": "TABP / TABPS Pets / Other / Personal",
+      "prep_notes": "one-line context — what's outstanding with this person, the agenda, what to bring. Pull from commitments where the counterparty matches."
+    }}
+  ],
+  "unscheduled_meetings": [   // from unscheduled_meetings_json — Prabhu agreed to meet but hasn't put it on the calendar
+    {{ "with": "person name", "what": "what the meeting is about", "promised": "when he committed (e.g. 'this week', '3d ago')" }}
+  ],
+  "email_digest": {{
+    "todo": [   // every email that needs Prabhu's action — reply, decision, sign-off. Include ALL such emails, no cap.
+      {{ "from": "Sender name", "subject": "...", "action": "what Prabhu needs to do — verb-first, one line" }}
+    ],
+    "fyi": [    // worth a glance, no action — status updates, useful newsletters, important CCs. Cap at 5.
+      {{ "from": "Sender name", "subject": "...", "summary": "one-line of what it is" }}
+    ],
+    "skip_count": integer   // count of remaining emails that are noise / promotional / transactional confirmations. They DO exist; just no need to surface details.
+  }},
+  "urgent_today": [    // commitments overdue or due today that aren't already covered by the schedule (i.e. action items not meetings)
     {{ "what": "...", "who": "...", "why_urgent": "..." }}
   ],
-  "today_meetings": [
-    {{ "time": "10:00 AM", "subject": "...", "context": "one-line briefing if needed" }}
-  ],
-  "top_emails": [   // top 3-5 overnight emails worth Prabhu's attention; SKIP marketing, transactional confirmations, and noise. Pull from the emails list. Empty list is fine if inbox is uneventful.
-    {{ "from": "Sender name", "subject": "...", "why_it_matters": "one-line — what to do or what's new" }}
-  ],
-  "decisions_needed": [  // things that need his judgment, not action
+  "decisions_needed": [  // things that need Prabhu's judgment, not action
     "..."
   ],
   "good_news": [  // wins, positive signals, things to feel good about
     "..."
   ],
   "estimated_focus_hours_today": integer 0-8,
-  "closing_nudge": one sentence — a specific suggestion for how to start the day
+  "closing_nudge": "one sentence — a specific suggestion for how to start the day"
 }}
 
-Tone: direct, warm, no hedge words. Lead with what's at stake.
+Tone: direct, warm, no hedge words. Lead with what's at stake. Be ruthless
+about email categorization: if it doesn't require Prabhu to do something,
+it's not "todo". Skip marketing/transactional aggressively.
+"""
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Evening briefing — what's coming tomorrow (night-before prep)
+# ─────────────────────────────────────────────────────────────────────
+EVENING_BRIEFING_SYSTEM = """\
+You are Prabhu's executive briefing assistant. You're writing the message
+he reads BEFORE BED — so he can prep for tomorrow tonight rather than
+discovering surprises in the morning. Direct, calm, sleep-friendly tone.
+Lead with tomorrow's schedule. Suggest 1-3 things he can knock out tonight
+to make tomorrow lighter.
+"""
+
+EVENING_BRIEFING_PROMPT = """\
+Compose Prabhu's evening briefing for {tomorrow_date} (it's currently the
+evening of {today_date}).
+
+Given:
+- Tomorrow's meetings (Outlook calendar): {meetings_json}
+- Meetings he agreed to (via WhatsApp/email) that aren't on his calendar
+  but are due tomorrow or within 3 days: {unscheduled_meetings_json}
+- Commitments due tomorrow: {due_tomorrow_json}
+- All open commitments (for full context, don't dump these wholesale):
+  {commitments_json}
+
+Produce a JSON object with this shape:
+{{
+  "greeting": "one sentence framing tomorrow (e.g. 'Tomorrow's a heavy meeting day' or 'Quiet calendar — focus block opportunity')",
+  "lead": "the single most important thing about tomorrow he should know tonight (one sentence)",
+  "schedule": [    // tomorrow's Outlook calendar in chronological order
+    {{
+      "time": "9:00 AM",
+      "subject": "...",
+      "with": "counterparty",
+      "company": "TABP / etc.",
+      "prep_notes": "what's outstanding with this person or what to bring — based on the commitments JSON"
+    }}
+  ],
+  "unscheduled_meetings": [   // meetings he should land on the calendar BEFORE tomorrow
+    {{ "with": "person", "what": "what for", "promised": "...", "suggestion": "how to handle — e.g. 'send a 9:30 invite tonight'" }}
+  ],
+  "due_tomorrow": [    // commitments with due_by = tomorrow, not meetings
+    {{ "what": "...", "who": "...", "company": "..." }}
+  ],
+  "prep_tonight": [    // 1-3 actionable suggestions Prabhu could knock out tonight to make tomorrow smoother (e.g. 'send agenda to JMFL ahead of 9 AM call', 'pull yesterday's plant numbers'). Concrete, doable in < 15 min each.
+    "..."
+  ],
+  "estimated_meeting_hours_tomorrow": integer,
+  "closing_thought": "one sentence — a calming framing for the night"
+}}
+
+Tone: calmer than the morning briefing. He's about to sleep. Don't over-stack
+the day with anxiety — help him close out tonight rather than dread tomorrow.
 """
 
 

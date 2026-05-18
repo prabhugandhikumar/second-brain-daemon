@@ -5,6 +5,7 @@ Routes:
   POST /webhook/telegram        — bot messages, voice notes, photos, button taps
   POST /cron/poll-drive          — Cloud Scheduler every 15 min
   POST /cron/morning-briefing    — Cloud Scheduler at 5 AM IST
+  POST /cron/evening-briefing    — Cloud Scheduler at 9 PM IST
   POST /cron/refresh-models      — Cloud Scheduler weekly (Sun 03:00 IST)
   POST /cron/poll-email          — Cloud Scheduler every 30 min
   GET  /                         — dashboard (login-protected)
@@ -25,6 +26,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from handlers.telegram import handle_telegram_update
 from handlers.drive_poll import run_drive_poll
 from handlers.briefing import run_morning_briefing
+from handlers.evening_briefing import run_evening_briefing
 from handlers.email_poll import run_email_poll
 from lib.secrets import load_runtime_secrets
 from lib.model_refresh import refresh_model_chain
@@ -100,6 +102,16 @@ async def cron_poll_drive(request: Request):
 async def cron_morning_briefing(request: Request):
     log.info("cron: morning-briefing triggered")
     result = await run_morning_briefing()
+    return result
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Cron: evening briefing at 9 PM IST (next-day prep)
+# ─────────────────────────────────────────────────────────────────────
+@app.post("/cron/evening-briefing")
+async def cron_evening_briefing(request: Request):
+    log.info("cron: evening-briefing triggered")
+    result = await run_evening_briefing()
     return result
 
 
