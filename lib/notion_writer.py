@@ -213,6 +213,42 @@ async def snooze_commitment(page_id: str, days: int = 3) -> None:
         log.info("commitment snoozed id=%s new_due=%s", page_id, new_due)
 
 
+async def append_note_to_commitment(page_id: str, note_text: str) -> None:
+    """Append a timestamped note to a commitment's Notes field.
+
+    Reads the current Notes, prepends a `[YYYY-MM-DD HH:MM] note_text` line,
+    writes back. Notion rich_text is capped at 2000 chars per text block; we
+    truncate the old content to make room for the new note if needed.
+    """
+    note_text = (note_text or "").strip()
+    if not note_text:
+        return
+
+    stamp = datetime.now(IST).strftime("%Y-%m-%d %H:%M")
+    new_line = f"[{stamp}] {note_text}"
+
+    async with _client() as c:
+        # 1. Fetch current Notes
+        r = await c.get(f"{NOTION_API}/pages/{page_id}")
+        r.raise_for_status()
+        page = r.json()
+        existing_blocks = page.get("properties", {}).get("Notes", {}).get("rich_text", []) or []
+        existing_text = " ".join(b.get("plain_text", "") for b in existing_blocks)
+
+        # 2. Prepend new line, cap to 1900 chars (Notion limit 2000, leave headroom)
+        if existing_text:
+            combined = f"{new_line}\n\n{existing_text}"
+        else:
+            combined = new_line
+        combined = combined[:1900]
+
+        # 3. Write back
+        body = {"properties": {"Notes": {"rich_text": [{"text": {"content": combined}}]}}}
+        resp = await c.patch(f"{NOTION_API}/pages/{page_id}", json=body)
+        resp.raise_for_status()
+        log.info("note appended id=%s len=%d", page_id, len(note_text))
+
+
 # ─────────────────────────────────────────────────────────────────────
 # Queries
 # ─────────────────────────────────────────────────────────────────────

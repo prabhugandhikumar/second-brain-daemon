@@ -133,6 +133,29 @@
   .act.done { color: #166534; border-color: #bbf7d0; }
   .act.snooze { color: #92400e; border-color: #fde68a; }
   .act.notion { color: #1a3a5c; border-color: #c7d2fe; }
+  .act.shot { color: #5b21b6; border-color: #ddd6fe; }
+
+  /* Inline note row that sits BELOW each commitment row */
+  .note-row {
+    padding: 8px 16px 12px;
+    border-bottom: 1px solid #f0f0e8;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .note-row:last-child { border-bottom: none; }
+  .note-row form { display: flex; gap: 6px; flex: 1; }
+  .note-input {
+    flex: 1;
+    border: 1px solid #d4d4cf;
+    border-radius: 5px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-family: inherit;
+    background: #fafaf7;
+  }
+  .note-input:focus { outline: none; border-color: #1a3a5c; background: white; }
+  .act.note-save { color: #1a3a5c; border-color: #c7d2fe; background: #f0f9ff; }
 
   .empty { text-align: center; padding: 32px 20px; color: #8b8b85; }
   .footer { text-align: center; color: #8b8b85; font-size: 11px; margin-top: 18px; padding: 12px; }
@@ -174,7 +197,14 @@
     <form method="POST" action="/api/done/{{ c.id }}" style="display:inline"><button type="submit" class="act done">✓ Done</button></form>
     <form method="POST" action="/api/snooze/{{ c.id }}/3" style="display:inline"><button type="submit" class="act snooze">⏰ 3d</button></form>
     {% if c.url %}<a class="act notion" href="{{ c.url }}" target="_blank">↗ Notion</a>{% endif %}
+    {% if c.drive_file_id %}<a class="act shot" href="https://drive.google.com/file/d/{{ c.drive_file_id }}/view" target="_blank">🖼️ Screenshot</a>{% endif %}
   </div>
+</div>
+<div class="note-row">
+  <form method="POST" action="/api/note/{{ c.id }}">
+    <input class="note-input" type="text" name="note" placeholder="Add a follow-up note for this item…" maxlength="500" />
+    <button type="submit" class="act note-save">＋ Save note</button>
+  </form>
 </div>
 {% endmacro %}
 
@@ -197,6 +227,7 @@
 {% endmacro %}
 
 {% macro render_meet(m) %}
+{% set _id = m.page_id or m.id %}
 <div class="meet-row">
   <div>
     <div class="meet-who">{{ m.with or m['with'] or '—' }}</div>
@@ -210,14 +241,22 @@
     </div>
   </div>
   <div class="actions">
-    {% set _id = m.page_id or m.id %}
     {% if _id %}
       <form method="POST" action="/api/done/{{ _id }}" style="display:inline"><button type="submit" class="act done">✓ Done</button></form>
       <form method="POST" action="/api/snooze/{{ _id }}/3" style="display:inline"><button type="submit" class="act snooze">⏰ 3d</button></form>
       {% if m.url %}<a class="act notion" href="{{ m.url }}" target="_blank">↗ Notion</a>{% endif %}
+      {% if m.drive_file_id %}<a class="act shot" href="https://drive.google.com/file/d/{{ m.drive_file_id }}/view" target="_blank">🖼️ Screenshot</a>{% endif %}
     {% endif %}
   </div>
 </div>
+{% if _id %}
+<div class="note-row">
+  <form method="POST" action="/api/note/{{ _id }}">
+    <input class="note-input" type="text" name="note" placeholder="Add a follow-up note for this item…" maxlength="500" />
+    <button type="submit" class="act note-save">＋ Save note</button>
+  </form>
+</div>
+{% endif %}
 {% endmacro %}
 
 <div class="wrap">

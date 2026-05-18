@@ -13,6 +13,7 @@ Routes:
   GET  /logout                   — clear session
   POST /api/done/{page_id}       — dashboard "✓ Done" button
   POST /api/snooze/{page_id}/{d} — dashboard "⏰ Snooze" button
+  POST /api/note/{page_id}       — dashboard "+ Add note" follow-up textbox
   GET  /healthz                  — health probe for Cloud Run
 """
 
@@ -20,7 +21,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, Response, status
+from fastapi import FastAPI, Form, Request, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from handlers.telegram import handle_telegram_update
@@ -166,6 +167,18 @@ async def api_snooze(page_id: str, days: int, request: Request):
         await notion_writer.snooze_commitment(page_id, days=days)
     except Exception as e:
         log.exception("api/snooze failed for %s", page_id)
+    return RedirectResponse("/", status_code=303)
+
+
+@app.post("/api/note/{page_id}")
+async def api_note(page_id: str, request: Request, note: str = Form("")):
+    redirect = _require_login_or_redirect(request)
+    if redirect:
+        return redirect
+    try:
+        await notion_writer.append_note_to_commitment(page_id, note)
+    except Exception as e:
+        log.exception("api/note failed for %s", page_id)
     return RedirectResponse("/", status_code=303)
 
 

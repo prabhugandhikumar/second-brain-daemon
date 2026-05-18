@@ -23,6 +23,7 @@ Routes:
 """
 
 import logging
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -35,6 +36,11 @@ from fastapi.templating import Jinja2Templates
 from handlers import briefing as briefing_helpers
 from lib import notion_writer
 from web import auth
+
+# Notion source-file marker we appended at capture time. We use it to
+# render a "View screenshot" link on the dashboard so Prabhu can pull up
+# the original WhatsApp/email screenshot for a commitment.
+_DRIVE_SOURCE_PATTERN = re.compile(r"\[source: Drive file ([A-Za-z0-9_\-]+)\]")
 
 log = logging.getLogger(__name__)
 
@@ -98,14 +104,32 @@ def register_dashboard_routes(app):
             if c.get("due_by") == tomorrow_iso and c.get("action_type") != "Meet"
         ]
 
-        # 6) Find each commitment's matching Notion URL for the "↗ Notion" buttons
-        url_by_id = {r.get("id"): r.get("url", "") for r in rows}
+        # 6) Find each commitment's matching Notion URL + extract source-file ID
+        #    + raw notes so the template can render "View screenshot" links and
+        #    the inline "Add note" form.
+        meta_by_id: dict[str, dict] = {}
+        for r in rows:
+            pid = r.get("id")
+            props = r.get("properties", {})
+            notes = " ".join(
+                b.get("plain_text", "")
+                for b in props.get("Notes", {}).get("rich_text", [])
+            )
+            m = _DRIVE_SOURCE_PATTERN.search(notes)
+            meta_by_id[pid] = {
+                "url": r.get("url", ""),
+                "notes": notes,
+                "drive_file_id": m.group(1) if m else None,
+            }
 
-        def _attach_url(items: list[dict]) -> list[dict]:
+        def _attach_meta(items: list[dict]) -> list[dict]:
             out = []
             for item in items:
                 copy = dict(item)
-                copy["url"] = url_by_id.get(item.get("id") or item.get("page_id"), "")
+                meta = meta_by_id.get(item.get("id") or item.get("page_id"), {})
+                copy["url"] = meta.get("url", "")
+                copy["notes"] = meta.get("notes", "")
+                copy["drive_file_id"] = meta.get("drive_file_id")
                 out.append(copy)
             return out
 
@@ -120,10 +144,10 @@ def register_dashboard_routes(app):
                 "grouped": grouped,
                 "today_meetings": today_meetings,
                 "tomorrow_meetings": tomorrow_meetings,
-                "unsched_today": _attach_url(unsched_today),
-                "unsched_tomorrow": _attach_url(unsched_tomorrow),
-                "due_today": _attach_url(due_today),
-                "due_tomorrow": _attach_url(due_tomorrow),
+                "unsched_today": _attach_meta(unsched_today),
+                "unsched_tomorrow": _attach_meta(unsched_tomorrow),
+                "due_today": _attach_meta(due_today),
+                "due_tomorrow": _attach_meta(due_tomorrow),
             },
         )
 
@@ -199,6 +223,9 @@ def _group_commitments(rows: list, today) -> dict:
             except Exception:
                 pass
 
+        m = _DRIVE_SOURCE_PATTERN.search(notes)
+        drive_file_id = m.group(1) if m else None
+
         commit_view = {
             "who": counterparty or "—",
             "what": title,
@@ -210,6 +237,7 @@ def _group_commitments(rows: list, today) -> dict:
             "aging_class": aging_class,
             "url": url,
             "id": page_id,
+            "drive_file_id": drive_file_id,
         }
 
         if not due:
